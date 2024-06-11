@@ -30,6 +30,13 @@ in
           description = "Create the PostgreSQL database locally";
         };
       };
+      redis = {
+        createLocally = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+          description = "Create a Redis instance locally";
+        };
+      };
     };
   };
 
@@ -44,12 +51,10 @@ in
             {
               db = {
                 db = "misskey";
-                # host = "localhost";
-                # host = "/var/run/postgresql/.s.PGSQL.5432";
                 host = "/var/run/postgresql";
                 port = config.services.postgresql.settings.port;
                 user = "misskey";
-                pass = "foo";
+                pass = null;
               };
             } else { })
         );
@@ -92,6 +97,13 @@ in
           ensureDBOwnership = true;
         }
       ];
+    };
+
+    services.redis.servers = lib.mkIf cfg.redis.createLocally {
+      misskey = {
+        enable = true;
+        port = 6379;
+      };
     };
   };
 }

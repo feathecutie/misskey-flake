@@ -33,7 +33,6 @@ stdenv.mkDerivation (finalAttrs: {
 
   patches = [
     ./pnpm_version.patch
-    # ./optional_db_args.patch
   ];
 
   # https://nixos.org/manual/nixpkgs/unstable/#javascript-pnpm
