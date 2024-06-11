@@ -27,14 +27,14 @@ in
         createLocally = lib.mkOption {
           type = lib.types.bool;
           default = false;
-          description = "Create the PostgreSQL database locally";
+          description = "Create the PostgreSQL database locally. This overrides the `db` key of the misskey configuration.";
         };
       };
       redis = {
         createLocally = lib.mkOption {
           type = lib.types.bool;
           default = false;
-          description = "Create and use a local Redis instance";
+          description = "Create and use a local Redis instance. This overrides the `redis` key of the misskey configuration.";
         };
         port = lib.mkOption { };
       };
@@ -52,6 +52,8 @@ in
             (lib.recursiveUpdate cfg.settings (lib.optionalAttrs cfg.database.createLocally {
               db = {
                 db = "misskey";
+                # Use unix socket instead of localhost to allow PostgreSQL peer authentication,
+                # required for `services.postgresql.ensureUsers`
                 host = "/var/run/postgresql";
                 port = config.services.postgresql.settings.port;
                 user = "misskey";

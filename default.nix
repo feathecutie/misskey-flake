@@ -8,6 +8,7 @@
 , bash
 , jemalloc
 , ffmpeg-headless
+, writeShellScript
 , ...
 }:
 
@@ -75,33 +76,41 @@ stdenv.mkDerivation (finalAttrs: {
     runHook postBuild
   '';
 
-  installPhase = ''
-    runHook preInstall
+  installPhase =
+    let
+      checkEnvVarScript = writeShellScript "misskey-check-env-var" ''
+        if [[ -z $MISSKEY_CONFIG_YML ]]; then
+          echo "MISSKEY_CONFIG_YML must be set to the location of the Misskey config file."
+          exit 1
+        fi
+      '';
+    in
+    ''
+      runHook preInstall
 
-    mkdir -p $out/data
-    cp -r . $out/data
-    cp .config/example.yml $out/data/.config/default.yml
+      mkdir -p $out/data
+      cp -r . $out/data
 
+      makeWrapper ${pnpm}/bin/pnpm $out/bin/misskey \
+        --run "${checkEnvVarScript} || exit" \
+        --chdir $out/data \
+        --add-flags run \
+        --set-default NODE_ENV production \
+        --prefix PATH : ${lib.makeBinPath [
+          nodejs
+          pnpm
+          bash
+        ]} \
+        --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath [
+          # TODO: Check if this is needed
+          jemalloc
+          ffmpeg-headless
+          # TODO: Check if this is needed
+          stdenv.cc.cc.lib
+        ]}
 
-    makeWrapper ${pnpm}/bin/pnpm $out/bin/misskey \
-      --chdir $out/data \
-      --add-flags run \
-      --set-default NODE_ENV production \
-      --prefix PATH : ${lib.makeBinPath [
-        nodejs
-        pnpm
-        bash
-      ]} \
-      --prefix LD_LIBRARY_PATH : ${lib.makeLibraryPath [
-        # TODO: Check if this is needed
-        jemalloc
-        ffmpeg-headless
-        # TODO: Check if this is needed
-        stdenv.cc.cc.lib
-      ]}
-
-    runHook postInstall
-  '';
+      runHook postInstall
+    '';
 
   passthru = {
     inherit (finalAttrs) pnpmDeps;
