@@ -34,8 +34,9 @@ in
         createLocally = lib.mkOption {
           type = lib.types.bool;
           default = false;
-          description = "Create a Redis instance locally";
+          description = "Create and use a local Redis instance";
         };
+        port = lib.mkOption { };
       };
     };
   };
@@ -47,8 +48,8 @@ in
       wantedBy = [ "multi-user.target" ];
       environment = {
         MISSKEY_CONFIG_YML = settingsFormat.generate "misskey-config.yml" (
-          lib.recursiveUpdate cfg.settings (if cfg.database.createLocally then
-            {
+          lib.recursiveUpdate
+            (lib.recursiveUpdate cfg.settings (lib.optionalAttrs cfg.database.createLocally {
               db = {
                 db = "misskey";
                 host = "/var/run/postgresql";
@@ -56,7 +57,13 @@ in
                 user = "misskey";
                 pass = null;
               };
-            } else { })
+            }))
+            (lib.optionalAttrs cfg.redis.createLocally {
+              redis = {
+                host = "localhost";
+                port = 6379;
+              };
+            })
         );
       };
       serviceConfig = {

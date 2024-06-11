@@ -85,6 +85,7 @@ stdenv.mkDerivation (finalAttrs: {
 
     makeWrapper ${pnpm}/bin/pnpm $out/bin/misskey \
       --chdir $out/data \
+      --add-flags run \
       --set-default NODE_ENV production \
       --prefix PATH : ${lib.makeBinPath [
         nodejs
