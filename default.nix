@@ -91,6 +91,12 @@ stdenv.mkDerivation (finalAttrs: {
       mkdir -p $out/data
       cp -r . $out/data
 
+      # Set up symlink for use at runtime
+      # TODO: Find a better solution for this (potentially patch Misskey to make this configurable?)
+      # Line that would need to be patched: https://github.com/misskey-dev/misskey/blob/9849aab40283cbde2184e74d4795aec8ef8ccba3/packages/backend/src/core/InternalStorageService.ts#L18
+      # Otherwise, maybe somehow bindmount a writable directory into <package>/data/files.
+      ln -s /var/lib/misskey $out/data/files
+
       makeWrapper ${pnpm}/bin/pnpm $out/bin/misskey \
         --run "${checkEnvVarScript} || exit" \
         --chdir $out/data \
