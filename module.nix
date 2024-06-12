@@ -17,7 +17,7 @@ in
       settings = lib.mkOption {
         type = settingsFormat.type;
         default = {
-          url = "https =//example.tld/";
+          url = "https://example.tld/";
           port = 3000;
           db = {
             host = "localhost";
@@ -44,7 +44,7 @@ in
         };
         description = ''
           Configuration for Misskey, see
-          <link xlink:href="https://github.com/misskey-dev/misskey/blob/develop/.config/example.yml"/>
+          [`example.yml`](https://github.com/misskey-dev/misskey/blob/develop/.config/example.yml)
           for supported settings.
         '';
       };
@@ -70,11 +70,31 @@ in
         };
       };
       reverseProxy = {
-        enable = lib.mkEnableOption "a HTTP reverse proxy";
+        enable = lib.mkEnableOption "a HTTP reverse proxy for Misskey";
         webserver = lib.mkOption {
-          type = lib.types.enum [ "caddy" "nginx" ];
-          default = "caddy";
-          description = "The webserver to use as the reverse proxy";
+          type = lib.types.attrTag {
+            nginx = lib.mkOption {
+              # This import only works in nixpkgs
+              # type = lib.types.submodule (import ../web-servers/nginx/vhost-options.nix);
+              type = lib.types.attrsOf lib.types.anything;
+              default = { };
+              description = ''
+                Extra configuration for the nginx virtual host of Misskey.
+                Set to `{ }` to use the default configuration.
+              '';
+            };
+            caddy = lib.mkOption {
+              # This import only works in nixpkgs
+              # type = lib.types.submodule (import ../web-servers/caddy/vhost-options.nix { cfg = config.services.caddy; });
+              type = lib.types.attrsOf lib.types.anything;
+              default = { };
+              description = ''
+                Extra configuration for the caddy virtual host of Misskey.
+                Set to `{ }` to use the default configuration.
+              '';
+            };
+          };
+          description = "The webserver to use as the reverse proxy.";
         };
       };
     };
@@ -156,25 +176,28 @@ in
       enable = true;
     };
 
-    services.caddy = lib.mkIf (cfg.reverseProxy.enable && cfg.reverseProxy.webserver == "caddy") {
-      enable = true;
-      virtualHosts.${cfg.settings.url} = {
-        extraConfig = ''
-          reverse_proxy localhost:${toString cfg.settings.port}
-        '';
-      };
+    services.caddy.virtualHosts = lib.mkIf (cfg.reverseProxy.enable && cfg.reverseProxy.webserver ? caddy) {
+      ${cfg.settings.url} = lib.mkMerge [
+        cfg.reverseProxy.webserver.caddy
+        {
+          extraConfig = ''
+            reverse_proxy localhost:${toString cfg.settings.port}
+          '';
+        }
+      ];
     };
 
-    services.nginx = lib.mkIf (cfg.reverseProxy.enable && cfg.reverseProxy.webserver == "nginx") {
-      enable = true;
-      # enableACME = true;
-      virtualHosts.${cfg.settings.url} = {
-        locations."/" = {
-          proxyPass = if cfg.settings ? socket then "http://unix:${cfg.settings.socket}" else "http://localhost:${toString cfg.settings.port}";
-          proxyWebsockets = true;
-          recommendedProxySettings = true;
-        };
-      };
+    services.nginx.virtualHosts = lib.mkIf (cfg.reverseProxy.enable && cfg.reverseProxy.webserver ? nginx) {
+      ${cfg.settings.url} = lib.mkMerge [
+        cfg.reverseProxy.webserver.nginx
+        {
+          locations."/" = {
+            proxyPass = "http://localhost:${toString cfg.settings.port}";
+            proxyWebsockets = true;
+            recommendedProxySettings = true;
+          };
+        }
+      ];
     };
   };
 }

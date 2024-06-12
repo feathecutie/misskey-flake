@@ -64,14 +64,7 @@ stdenv.mkDerivation (finalAttrs: {
     )
 
     # Equivalent to pnpm build, but with each package being built seperately
-    pnpm build-pre
-    pnpm --filter misskey-bubble-game build
-    pnpm --filter misskey-js build
-    pnpm --filter misskey-reversi build
-    pnpm --filter sw build
-    pnpm --filter backend build
-    pnpm --filter frontend build
-    pnpm build-assets
+    pnpm build
 
     runHook postBuild
   '';
@@ -127,7 +120,7 @@ stdenv.mkDerivation (finalAttrs: {
     homepage = "https://misskey-hub.net/";
     license = lib.licenses.agpl3Only;
     maintainers = [ lib.maintainers.feathecutie ];
-    platforms = [ "x86_64-linux" ];
+    platforms = lib.platforms.unix;
     mainProgram = "misskey";
   };
 })
