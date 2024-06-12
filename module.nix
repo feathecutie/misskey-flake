@@ -52,6 +52,13 @@ in
         #   description = "Create and use a local Redis instance. Overrides `settings.redisForTimelines.host`";
         # };
       };
+      meilisearch = {
+        useLocally = lib.mkOption {
+          type = lib.types.bool;
+          default = false;
+          description = "Use a local Meilisearch instance. Overrides `settings.meilisearch.{host,port,ssl}`";
+        };
+      };
       reverseProxy = {
         enable = lib.mkEnableOption "a HTTP proxy for Misskey";
         webserver = lib.mkOption {
@@ -71,20 +78,27 @@ in
       environment = {
         MISSKEY_CONFIG_YML = settingsFormat.generate "misskey-config.yml"
           (
-            lib.recursiveUpdate cfg.settings {
-              db = lib.optionalAttrs cfg.database.createLocally {
-                db = "misskey";
-                # Use unix socket instead of localhost to allow PostgreSQL peer authentication,
-                # required for `services.postgresql.ensureUsers`
-                host = "/var/run/postgresql";
-                port = config.services.postgresql.settings.port;
-                user = "misskey";
-                pass = null;
-              };
-              redis = lib.optionalAttrs cfg.redis.createLocally {
-                host = "localhost";
-              };
-            }
+            lib.recursiveUpdate cfg.settings
+              ({
+                db = lib.optionalAttrs cfg.database.createLocally {
+                  db = "misskey";
+                  # Use unix socket instead of localhost to allow PostgreSQL peer authentication,
+                  # required for `services.postgresql.ensureUsers`
+                  host = "/var/run/postgresql";
+                  port = config.services.postgresql.settings.port;
+                  user = "misskey";
+                  pass = null;
+                };
+                redis = lib.optionalAttrs cfg.redis.createLocally {
+                  host = "localhost";
+                };
+              } // (lib.optionalAttrs cfg.meilisearch.useLocally {
+                meilisearch = {
+                  host = "localhost";
+                  port = config.services.meilisearch.listenPort;
+                  ssl = false;
+                };
+              }))
           )
         ;
       };
@@ -131,6 +145,10 @@ in
         enable = true;
         port = cfg.settings.redis.port;
       };
+    };
+
+    services.meilisearch = lib.mkIf cfg.meilisearch.useLocally {
+      enable = true;
     };
 
     services.caddy = lib.mkIf (cfg.reverseProxy.enable && cfg.reverseProxy.webserver == "caddy") {
