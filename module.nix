@@ -16,7 +16,32 @@ in
       package = lib.mkPackageOption pkgs "misskey" { };
       settings = lib.mkOption {
         type = settingsFormat.type;
-        default = { };
+        default = {
+          url = "https =//example.tld/";
+          port = 3000;
+          db = {
+            host = "localhost";
+            port = 5432;
+            db = "misskey";
+            user = "example-misskey-user";
+            pass = "example-misskey-pass";
+          };
+          dbReplications = false;
+          redis = {
+            host = "localhost";
+            port = 6379;
+          };
+          id = "aidx";
+          proxyBypassHosts = [
+            "api.deepl.com"
+            "api-free.deepl.com"
+            "www.recaptcha.net"
+            "hcaptcha.com"
+            "challenges.cloudflare.com"
+          ];
+          proxyRemoteFiles = true;
+          signToActivityPubGet = true;
+        };
         description = ''
           Configuration for Misskey, see
           <link xlink:href="https://github.com/misskey-dev/misskey/blob/develop/.config/example.yml"/>
@@ -36,35 +61,20 @@ in
           default = false;
           description = "Create and use a local Redis instance. Overrides `settings.redis.host`";
         };
-        # pubSub.createLocally = lib.mkOption {
-        #   type = lib.types.bool;
-        #   default = false;
-        #   description = "Create and use a local Redis instance. Overrides `settings.redisForPubSub.host`";
-        # };
-        # jobQueue.createLocally = lib.mkOption {
-        #   type = lib.types.bool;
-        #   default = false;
-        #   description = "Create and use a local Redis instance. Overrides `settings.redisForJobQueue.host`";
-        # };
-        # timelines.createLocally = lib.mkOption {
-        #   type = lib.types.bool;
-        #   default = false;
-        #   description = "Create and use a local Redis instance. Overrides `settings.redisForTimelines.host`";
-        # };
       };
       meilisearch = {
-        useLocally = lib.mkOption {
+        createLocally = lib.mkOption {
           type = lib.types.bool;
           default = false;
-          description = "Use a local Meilisearch instance. Overrides `settings.meilisearch.{host,port,ssl}`";
+          description = "Create and use a local Meilisearch instance. Overrides `settings.meilisearch.{host,port,ssl}`";
         };
       };
       reverseProxy = {
-        enable = lib.mkEnableOption "a HTTP proxy for Misskey";
+        enable = lib.mkEnableOption "a HTTP reverse proxy";
         webserver = lib.mkOption {
-          type = lib.types.enum [ "caddy" /*"nginx"*/ ];
+          type = lib.types.enum [ "caddy" "nginx" ];
           default = "caddy";
-          description = "The webserver to use as a reverse proxy.";
+          description = "The webserver to use as the reverse proxy";
         };
       };
     };
@@ -92,7 +102,7 @@ in
                 redis = lib.optionalAttrs cfg.redis.createLocally {
                   host = "localhost";
                 };
-              } // (lib.optionalAttrs cfg.meilisearch.useLocally {
+              } // (lib.optionalAttrs cfg.meilisearch.createLocally {
                 meilisearch = {
                   host = "localhost";
                   port = config.services.meilisearch.listenPort;
@@ -121,11 +131,6 @@ in
         ProtectKernelModules = true;
         ProtectKernelTunables = true;
         RestrictAddressFamilies = "AF_INET AF_INET6 AF_UNIX AF_NETLINK";
-        # RestrictNamespaces = true;
-        # RestrictRealtime = true;
-        # SystemCallArchitectures = "native";
-        # SystemCallFilter = "@system-service";
-        # UMask = "0077";
       };
     };
 
@@ -147,7 +152,7 @@ in
       };
     };
 
-    services.meilisearch = lib.mkIf cfg.meilisearch.useLocally {
+    services.meilisearch = lib.mkIf cfg.meilisearch.createLocally {
       enable = true;
     };
 
@@ -160,16 +165,17 @@ in
       };
     };
 
-    # services.nginx = lib.mkIf (cfg.reverseProxy.enable && cfg.reverseProxy.webserver == "nginx") {
-    #   enable = true;
-    #   virtualHosts.${cfg.settings.url} = {
-    #     enableACME = true;
-    #     locations."/" = {
-    #       proxyPass = "http://127.0.0.1:${toString cfg.settings.port}";
-    #       recommendedProxySettings = true;
-    #     };
-    #   };
-    # };
+    services.nginx = lib.mkIf (cfg.reverseProxy.enable && cfg.reverseProxy.webserver == "nginx") {
+      enable = true;
+      # enableACME = true;
+      virtualHosts.${cfg.settings.url} = {
+        locations."/" = {
+          proxyPass = if cfg.settings ? socket then "http://unix:${cfg.settings.socket}" else "http://localhost:${toString cfg.settings.port}";
+          proxyWebsockets = true;
+          recommendedProxySettings = true;
+        };
+      };
+    };
   };
 }
 
